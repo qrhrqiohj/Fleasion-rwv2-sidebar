@@ -999,6 +999,7 @@ class ReplacerConfigWindow(QDialog):
 
         # Create Replacer tab
         replacer_tab = self._create_replacer_tab()
+        replacer_tab.setProperty(glass.NAV_ICON, 'replacer')
         self.tab_widget.addTab(replacer_tab, tr('ui.gui.replacer_config.replacer'))
 
         # Reserve the final tab order without constructing hidden pages
@@ -1024,6 +1025,10 @@ class ReplacerConfigWindow(QDialog):
                 wrapper = self._proxy_required(page)
             elif name == 'proxy':
                 wrapper = self._env_proxy_required(page)
+            elif name == 'settings':
+                # Glass pins Settings to the bottom of its side panel
+                wrapper.setProperty(glass.NAV_PINNED, True)  # ruff: ignore[boolean-positional-value-in-call] - Qt API
+            wrapper.setProperty(glass.NAV_ICON, name)
             index = self.tab_widget.addTab(wrapper, title)
             self._tab_indices[name] = index
             self.tab_widget.setTabEnabled(index, False)  # ruff: ignore[boolean-positional-value-in-call]
@@ -1049,7 +1054,7 @@ class ReplacerConfigWindow(QDialog):
         self._command_palette = command_palette.install(self, self._palette_commands)
         command_palette.fade_tabs(self.tab_widget)
         glass.theme.configure(self.config_manager)
-        glass.theme.attach(self)
+        glass.theme.attach(self, tabs=self.tab_widget)
 
     def _install_tab(self, name: str, widget: QWidget, *, enabled: bool = True) -> None:
         page = self._tab_pages[name]

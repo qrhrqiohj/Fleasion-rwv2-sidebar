@@ -1,5 +1,7 @@
 """Reusable UI gate for sections that require Fleasion's proxy."""
 
+import contextlib
+
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (
     QFrame,
@@ -11,6 +13,10 @@ from PySide6.QtWidgets import (
 )
 
 from fleasion.localization import tr
+
+from . import glass
+from .glass.style import glass_colors
+from .theme import ThemeManager
 
 
 class ProxyGate(QWidget):
@@ -69,6 +75,8 @@ class ProxyGate(QWidget):
         overlay_layout.addLayout(button_row)
         overlay_layout.addStretch()
         self._apply_style()
+        with contextlib.suppress(TypeError):
+            ThemeManager.events().changed.connect(self._apply_style)
 
     def event(self, event: QEvent) -> bool:
         if event.type() in {QEvent.Type.Resize, QEvent.Type.Show}:
@@ -89,6 +97,9 @@ class ProxyGate(QWidget):
         self.set_proxy_enabled(True)
 
     def _apply_style(self) -> None:
+        if glass.theme.active:
+            self._apply_glass_style()
+            return
         if self._compact:
             radius = 6
             label_padding = '10px 14px'
@@ -122,5 +133,33 @@ class ProxyGate(QWidget):
             }}
             QPushButton#_FleasionProxyDisabledOverlayDismissButton:hover {{
                 background-color: rgba(255, 255, 255, 255);
+            }}
+        """)
+
+    def _apply_glass_style(self) -> None:
+        colors = glass_colors()
+        ink = f'{colors.ink.red()},{colors.ink.green()},{colors.ink.blue()}'
+        popup = f'{colors.popup.red()},{colors.popup.green()},{colors.popup.blue()}'
+        surface = f'{colors.surface.red()},{colors.surface.green()},{colors.surface.blue()}'
+        width = (
+            'min-width: 220px; max-width: 420px;'
+            if self._compact
+            else 'min-width: 320px; max-width: 520px;'
+        )
+        padding = '10px 16px' if self._compact else '16px 22px'
+        # A quiet glass card over a light veil, matching the rest of the window
+        self._overlay.setStyleSheet(f"""
+            QFrame#{self._overlay.objectName()} {{
+                background-color: rgba({surface}, 0.35);
+                border-radius: 12px;
+            }}
+            QLabel#_FleasionProxyDisabledOverlayLabel {{
+                background-color: rgba({popup}, 0.94);
+                color: {colors.text.name()};
+                border: 1px solid rgba({ink}, 0.14);
+                border-radius: 12px;
+                padding: {padding};
+                font-weight: 600;
+                {width}
             }}
         """)

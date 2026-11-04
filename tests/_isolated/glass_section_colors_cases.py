@@ -63,15 +63,14 @@ def test_glass_sections_match_scraper_surface_and_restore_dark(app: QApplication
         ThemeManager.apply_theme('Glass')
         QTest.qWait(40)
         glass_colors = ThemeManager.panel_colors()
-        assert glass_colors.section_background == QColor(8, 9, 14, 77)
+        # Glass cards are a faint lift above the glass, not an opaque panel
+        assert glass_colors.section_background == QColor(255, 255, 255, 11)
         assert glass_colors.section_background.alpha() < 255
-        assert glass_colors.section_border == QColor(255, 255, 255, 20)
+        assert glass_colors.section_border == QColor(255, 255, 255, 22)
         assert glass_colors.container_background_css == 'background-color: transparent;'
         glass_image = section.grab().toImage()
         glass_pixel = glass_image.pixelColor(30, glass_image.height() - 8)
-        assert glass_pixel.blue() > glass_pixel.red()
-        assert glass_pixel.red() < dark_pixel.red()
-        assert glass_pixel.alpha() < 255
+        assert 0 < glass_pixel.alpha() < 255
 
         ThemeManager.apply_theme('Dark')
         QTest.qWait(35)
@@ -96,6 +95,6 @@ def test_glass_palette_restores_normal_window_color(app: QApplication) -> None:
     ThemeManager.apply_theme('Dark')
     assert app.palette().color(QPalette.ColorRole.Window).alpha() == 255
     ThemeManager.apply_theme('Glass')
-    assert ThemeManager.panel_colors().section_background == QColor(8, 9, 14, 77)
+    assert ThemeManager.panel_colors().section_background == QColor(255, 255, 255, 11)
     ThemeManager.apply_theme('System')
     assert app.palette().color(QPalette.ColorRole.Window).alpha() == 255

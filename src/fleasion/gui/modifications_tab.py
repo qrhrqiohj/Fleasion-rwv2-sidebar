@@ -35,6 +35,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
+    QIcon,
     QKeyEvent,
     QMouseEvent,
     QPainter,
@@ -103,6 +104,7 @@ from fleasion.widgets.tab_footer import TabFooter
 
 from . import glass
 from .file_drop import FileDropLineEdit, local_file_path_example
+from .glass.style import icon_path as glass_icon_path
 from .theme import ThemeManager
 
 if TYPE_CHECKING:
@@ -700,6 +702,8 @@ class CollapsibleSection(QWidget):
         self._set_arrow_state(expanded)
         self._arrow.clicked.connect(self.toggle)
         header_layout.addWidget(self._arrow)
+        with contextlib.suppress(TypeError):
+            ThemeManager.events().changed.connect(self._refresh_arrow)
 
         self._title_label = QLabel(tr('ui.gui.modifications_tab.b_value_b', value0=title))
         self._title_label.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -748,15 +752,16 @@ class CollapsibleSection(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         path = QPainterPath()
-        path.addRoundedRect(rect, 8.0, 8.0)
+        radius = 12.0 if glass.theme.active else 8.0
+        path.addRoundedRect(rect, radius, radius)
         painter.fillPath(path, colors.section_background)
         if glass.theme.active:
-            # Match the table header overlay in both light and dark Glass
+            # A faint header band, matching the table header overlay
             header = QRectF(rect.left(), rect.top(), rect.width(), self._header_widget.height())
             header_path = QPainterPath()
             header_path.addRect(header)
             header_color = QColor(colors.section_border)
-            header_color.setAlpha(11)
+            header_color.setAlpha(7)
             painter.fillPath(path.intersected(header_path), header_color)
         painter.setPen(colors.section_border)
         painter.drawPath(path)
@@ -780,8 +785,21 @@ class CollapsibleSection(QWidget):
         return self._DEFAULT_ARROW_STYLE
 
     def _set_arrow_state(self, expanded: bool) -> None:
+        if glass.theme.active:
+            # Glass uses drawn chevrons instead of Unicode triangles
+            self._arrow.setText('')
+            self._arrow.setIcon(
+                QIcon(glass_icon_path('chevron-down' if expanded else 'chevron-right'))
+            )
+            self._arrow.setIconSize(QSize(12, 12))
+            self._arrow.setStyleSheet(self._DEFAULT_ARROW_STYLE)
+            return
+        self._arrow.setIcon(QIcon())
         self._arrow.setText(self._EXPANDED_ARROW if expanded else self._COLLAPSED_ARROW)
         self._arrow.setStyleSheet(self._arrow_style(expanded))
+
+    def _refresh_arrow(self) -> None:
+        self._set_arrow_state(self._expanded)
 
     def toggle(self) -> None:
         self._expanded = not self._expanded

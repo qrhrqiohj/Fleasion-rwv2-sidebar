@@ -469,13 +469,11 @@ class ThemeManager:
             from .glass.style import glass_colors
 
             colors = glass_colors()
-            # Match the QAbstractItemView / Scraper Glass surface rather than
-            # adding an unrelated opaque navy panel above the backdrop
+            ink = colors.ink
+            # Cards sit just above the glass, matching the Glass QGroupBox card
             return PanelThemeColors(
-                section_background=QColor(
-                    colors.well.red(), colors.well.green(), colors.well.blue(), 77
-                ),
-                section_border=QColor(colors.ink.red(), colors.ink.green(), colors.ink.blue(), 20),
+                section_background=QColor(ink.red(), ink.green(), ink.blue(), 11),
+                section_border=QColor(ink.red(), ink.green(), ink.blue(), 22),
                 container_background=QColor(0, 0, 0, 0),
             )
 
