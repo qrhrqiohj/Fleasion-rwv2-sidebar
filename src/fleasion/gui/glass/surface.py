@@ -114,17 +114,39 @@ def paint_glass(
     surface = QColor(colors.surface)
     surface.setAlpha(round(255 * effective_opacity()))
     painter.fillPath(path, surface)
+    # A faint top-down light rather than a glossy sheen
     sheen = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-    sheen.setColorAt(0.0, QColor(255, 255, 255, 34))
-    sheen.setColorAt(0.25, QColor(255, 255, 255, 10))
-    sheen.setColorAt(1.0, QColor(255, 255, 255, 4))
+    sheen.setColorAt(0.0, QColor(255, 255, 255, 16))
+    sheen.setColorAt(0.2, QColor(255, 255, 255, 5))
+    sheen.setColorAt(1.0, QColor(255, 255, 255, 0))
     painter.fillPath(path, sheen)
     rim = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-    rim.setColorAt(0.0, QColor(255, 255, 255, 120))
-    rim.setColorAt(0.12, QColor(255, 255, 255, 40))
-    rim.setColorAt(1.0, QColor(255, 255, 255, 22))
+    rim.setColorAt(0.0, QColor(255, 255, 255, 64))
+    rim.setColorAt(0.1, QColor(255, 255, 255, 26))
+    rim.setColorAt(1.0, QColor(255, 255, 255, 16))
     painter.setPen(QPen(rim, 1.0))
     painter.drawPath(path)
+
+
+def paint_backdrop(painter: QPainter, widget: QWidget, path: QPainterPath, opacity: float) -> None:
+    """Paint the window's own glass behind ``path`` in a child widget.
+
+    In wallpaper mode this repeats the exact wallpaper slice and tint the window
+    uses, so overlays read as part of the same sheet of glass.
+    """
+    window = widget.window()
+    offset = widget.mapTo(window, QPoint(0, 0))
+    window_path = path.translated(offset.x(), offset.y())
+    painter.save()
+    painter.translate(-offset.x(), -offset.y())
+    if _opaque_fallback(window):
+        painter.fillPath(window_path, _fallback_color())
+    if state.settings.backdrop == 'wallpaper':
+        _paint_wallpaper(painter, window, window_path)
+    painter.restore()
+    surface = QColor(glass_colors().surface)
+    surface.setAlphaF(max(0.0, min(1.0, opacity)))
+    painter.fillPath(path, surface)
 
 
 def _repolish_later(widget: QWidget) -> None:

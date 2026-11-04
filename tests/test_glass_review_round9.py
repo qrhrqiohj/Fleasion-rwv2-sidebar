@@ -15,6 +15,7 @@ from shiboken6 import isValid
 
 from fleasion.gui.glass import controller, surface
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -30,11 +31,11 @@ def app() -> Iterator[QApplication]:
     previous_theme = ThemeManager._current_theme  # pyright: ignore[reportPrivateUsage]
     previous_effective = ThemeManager._effective_theme  # pyright: ignore[reportPrivateUsage]
     previous_stylesheet = application.styleSheet()
-    ThemeManager.apply_theme('Light')
+    leave_glass('Light')
     try:
         yield application
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         ThemeManager.apply_theme(previous_theme)
         ThemeManager._effective_theme = previous_effective  # pyright: ignore[reportPrivateUsage]
         application.setStyleSheet(previous_stylesheet)
@@ -51,11 +52,11 @@ def test_glass_keeps_startup_button_layout_policy_while_active(app: QApplication
     assert 'QPushButton[glassArrow=' in window.styleSheet()
     controller.theme.enable(app)
     assert app.styleSheet().count(_BASE_QSS) == 1
-    ThemeManager.apply_theme('System')
+    leave_glass('System')
     assert app.styleSheet() == _BASE_QSS
     ThemeManager.apply_theme('Glass')
     assert app.styleSheet().count(_BASE_QSS) == 1
-    ThemeManager.apply_theme('Dark')
+    leave_glass('Dark')
     assert app.styleSheet() == _BASE_QSS
     assert window.styleSheet() == ''
     window.deleteLater()
@@ -69,7 +70,7 @@ def test_glass_preserves_preexisting_app_qss_after_repeated_enable(app: QApplica
         assert app.styleSheet() == original
         controller.theme.enable(app)
         assert app.styleSheet().count(original) == 1
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         assert app.styleSheet() == original
 
 
@@ -81,7 +82,7 @@ def test_glass_releases_properties_and_reclassifies_resized_button(app: QApplica
         ThemeManager.apply_theme('Glass')
         assert button.property('glassArrow') is True
         assert button.property('compact') is None
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         assert button.property('glassArrow') is None
         assert button.property('compact') is None
         button.setFlat(False)
@@ -89,9 +90,9 @@ def test_glass_releases_properties_and_reclassifies_resized_button(app: QApplica
         ThemeManager.apply_theme('Glass')
         assert button.property('glassArrow') is None
         assert button.property('compact') is None
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         button.deleteLater()
         app.processEvents()
 
@@ -109,12 +110,12 @@ def test_glass_restores_compact_and_does_not_modify_existing_properties(app: QAp
         assert compact.property('compact') is True
         assert custom.property('glassArrow') is False
         assert custom.property('compact') == 'user-managed'
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         assert compact.property('compact') is None
         assert custom.property('glassArrow') is False
         assert custom.property('compact') == 'user-managed'
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         compact.deleteLater()
         custom.deleteLater()
         app.processEvents()

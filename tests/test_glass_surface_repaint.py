@@ -123,7 +123,6 @@ def test_reducing_opacity_replaces_the_previous_surface(
 def test_live_backing_store_has_no_old_content_after_move_and_scroll(
     app: QApplication, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    previous_style = ThemeManager._style  # pyright: ignore[reportPrivateUsage]
     previous_mode = ThemeManager._color_mode  # pyright: ignore[reportPrivateUsage]
     previous_accent = ThemeManager._accent  # pyright: ignore[reportPrivateUsage]
     monkeypatch.setattr(state, '_config', None)
@@ -140,7 +139,7 @@ def test_live_backing_store_has_no_old_content_after_move_and_scroll(
     scroll.setWidget(content)
     layout.addWidget(scroll)
     try:
-        ThemeManager.apply_appearance('Glass', 'Dark', 'Ice')
+        ThemeManager.apply_appearance('Dark', 'Ice')
         window.show()
         app.processEvents()
         previous_position = label.mapTo(window, QPoint(50, 15))
@@ -163,4 +162,4 @@ def test_live_backing_store_has_no_old_content_after_move_and_scroll(
         window.close()
         window.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        ThemeManager.apply_appearance(previous_style, previous_mode, previous_accent)
+        ThemeManager.apply_appearance(previous_mode, previous_accent)

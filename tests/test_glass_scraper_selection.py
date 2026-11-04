@@ -25,6 +25,7 @@ from fleasion.cache import cache_manager as cache_module
 from fleasion.appearance import ACCENTS
 from fleasion.cache.cache_viewer import CacheViewerTab
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -40,7 +41,7 @@ def app() -> Iterator[QApplication]:
     try:
         yield application
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         ThemeManager.apply_theme(old_theme)
         ThemeManager._effective_theme = old_effective  # pyright: ignore[reportPrivateUsage]
         application.setStyleSheet(old_sheet)
@@ -62,7 +63,7 @@ def test_glass_scraper_selected_row_is_subtle_and_unselected_rows_keep_colors(
     app: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, accent: str
 ) -> None:
     monkeypatch.setattr(cache_module, 'CONFIG_DIR', tmp_path)
-    ThemeManager.apply_theme('System')
+    leave_glass('System')
     container = QWidget()
     container.resize(830, 470)
     layout = QVBoxLayout(container)
@@ -78,7 +79,7 @@ def test_glass_scraper_selected_row_is_subtle_and_unselected_rows_keep_colors(
             table.setItem(row, column, QTableWidgetItem(f'{row}-{column}'))
     try:
         container.show()
-        ThemeManager.apply_appearance('Glass', 'Dark', accent)
+        ThemeManager.apply_appearance('Dark', accent)
         QTest.qWait(100)
         table.clearSelection()
         table.setCurrentItem(None)  # pyright: ignore[reportArgumentType] - Qt supports None
@@ -114,7 +115,7 @@ def test_glass_scraper_selected_row_is_subtle_and_unselected_rows_keep_colors(
         assert second_selected[2:] == before[2:]
         assert second_selected[1] != before[1]
 
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         QTest.qWait(50)
         table.clearSelection()
         after_system = _row_colors(table)
@@ -125,12 +126,12 @@ def test_glass_scraper_selected_row_is_subtle_and_unselected_rows_keep_colors(
             table.viewport().testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground),
         )
 
-        ThemeManager.apply_theme('Dark')
+        leave_glass('Dark')
         QTest.qWait(30)
         assert table.palette().color(QPalette.ColorRole.AlternateBase) == QColor(53, 53, 53)
         assert all(color.alpha() == 255 for color in _row_colors(table))
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         # This fixture builds only the table, not the remaining timers/loaders.
         scraper._ui_ready = False  # pyright: ignore[reportPrivateUsage]
         scraper.shutdown()

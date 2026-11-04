@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -18,6 +20,9 @@ from fleasion.gui.rando_stuff_tab import CollapsibleSection as MiscSection
 from fleasion.gui.settings_tab import CollapsibleSection as SettingsSection
 from fleasion.gui.theme import ThemeManager
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from glass_helpers import leave_glass  # noqa: E402
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -32,7 +37,7 @@ def app() -> Iterator[QApplication]:
     try:
         yield application
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         ThemeManager.apply_theme(original_theme)
         ThemeManager._effective_theme = original_effective  # pyright: ignore[reportPrivateUsage]
         application.setStyleSheet(original_stylesheet)
@@ -45,7 +50,7 @@ def test_settings_misc_modifications_use_the_same_section_renderer() -> None:
 
 
 def test_glass_sections_match_scraper_surface_and_restore_dark(app: QApplication) -> None:
-    ThemeManager.apply_theme('Dark')
+    leave_glass('Dark')
     dialog = QDialog()
     dialog.resize(500, 280)
     layout = QVBoxLayout(dialog)
@@ -63,17 +68,16 @@ def test_glass_sections_match_scraper_surface_and_restore_dark(app: QApplication
         ThemeManager.apply_theme('Glass')
         QTest.qWait(40)
         glass_colors = ThemeManager.panel_colors()
-        assert glass_colors.section_background == QColor(8, 9, 14, 77)
+        # Glass cards are a faint lift above the glass, not an opaque panel
+        assert glass_colors.section_background == QColor(255, 255, 255, 11)
         assert glass_colors.section_background.alpha() < 255
-        assert glass_colors.section_border == QColor(255, 255, 255, 20)
+        assert glass_colors.section_border == QColor(255, 255, 255, 22)
         assert glass_colors.container_background_css == 'background-color: transparent;'
         glass_image = section.grab().toImage()
         glass_pixel = glass_image.pixelColor(30, glass_image.height() - 8)
-        assert glass_pixel.blue() > glass_pixel.red()
-        assert glass_pixel.red() < dark_pixel.red()
-        assert glass_pixel.alpha() < 255
+        assert 0 < glass_pixel.alpha() < 255
 
-        ThemeManager.apply_theme('Dark')
+        leave_glass('Dark')
         QTest.qWait(35)
         after_image = section.grab().toImage()
         after = after_image.pixelColor(30, after_image.height() - 8)
@@ -84,7 +88,7 @@ def test_glass_sections_match_scraper_surface_and_restore_dark(app: QApplication
             == 'background-color: palette(window);'
         )
     finally:
-        ThemeManager.apply_theme('Dark')
+        leave_glass('Dark')
         dialog.close()
         dialog.deleteLater()
         app.processEvents()
@@ -93,9 +97,9 @@ def test_glass_sections_match_scraper_surface_and_restore_dark(app: QApplication
 def test_glass_palette_restores_normal_window_color(app: QApplication) -> None:
     ThemeManager.apply_theme('Glass')
     assert app.palette().color(QPalette.ColorRole.Window).alpha() == 0
-    ThemeManager.apply_theme('Dark')
+    leave_glass('Dark')
     assert app.palette().color(QPalette.ColorRole.Window).alpha() == 255
     ThemeManager.apply_theme('Glass')
-    assert ThemeManager.panel_colors().section_background == QColor(8, 9, 14, 77)
-    ThemeManager.apply_theme('System')
+    assert ThemeManager.panel_colors().section_background == QColor(255, 255, 255, 11)
+    leave_glass('System')
     assert app.palette().color(QPalette.ColorRole.Window).alpha() == 255

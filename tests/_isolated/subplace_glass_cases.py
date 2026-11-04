@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+import sys
 from itertools import pairwise
 from typing import TYPE_CHECKING
 
@@ -15,6 +17,9 @@ from PySide6.QtWidgets import QApplication
 
 from fleasion.gui.subplace_joiner_tab import SubplaceGameCard, SubplaceJoinerTab
 from fleasion.gui.theme import ThemeManager
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from glass_helpers import leave_glass  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -102,7 +107,7 @@ def test_subplace_buttons_fit_sidebar_and_cards_never_change_size(
         callback('The Backrooms with an extremely long name & description')
 
     monkeypatch.setattr(SubplaceJoinerTab, '_fetch_place_name', use_local_names)
-    ThemeManager.apply_theme('Dark')
+    leave_glass('Dark')
     tab = SubplaceJoinerTab(defer_setup=True)
     for _ in tab._build_ui():  # pyright: ignore[reportPrivateUsage]
         pass

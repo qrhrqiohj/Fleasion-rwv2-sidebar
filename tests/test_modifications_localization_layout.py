@@ -25,6 +25,7 @@ from fleasion import localization
 from fleasion.gui.modifications_tab import CollapsibleSection, ModificationsTab, ModRowWidget
 from fleasion.gui.rando_stuff_tab import RandoStuffTab
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 from fleasion.localization import get_language, set_language, tr
 from fleasion.translations.pt import PORTUGUESE
 
@@ -457,6 +458,8 @@ def test_preloaded_tab_background_respects_theme(
     monkeypatch: pytest.MonkeyPatch, tab_name: str, theme: str
 ) -> None:
     app = _qapp()
+    # Opaque panel backgrounds only apply before Glass is installed
+    leave_glass(theme)
     monkeypatch.setattr(ThemeManager, '_current_theme', theme)
     monkeypatch.setattr(ThemeManager, '_effective_theme', theme)
     monkeypatch.setattr(ThemeManager, '_color_mode', theme)

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from fleasion.gui.glass.itemview import RoundedItemViewEffect
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -40,7 +41,7 @@ def app() -> Iterator[QApplication]:
     try:
         yield application
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         ThemeManager.apply_theme(original_theme)
         ThemeManager._effective_theme = original_effective  # pyright: ignore[reportPrivateUsage]
         application.setStyleSheet(original_sheet)
@@ -54,7 +55,7 @@ def test_tree_and_table_headers_have_no_second_rounded_frame(
     if theme_before_widgets:
         ThemeManager.apply_theme('Glass')
     else:
-        ThemeManager.apply_theme('Dark')
+        leave_glass('Dark')
 
     window = QDialog()
     layout = QVBoxLayout(window)
@@ -135,7 +136,7 @@ def test_tree_and_table_headers_have_no_second_rounded_frame(
             _assert_no_inner_corner_cutout(header)
             _assert_glass_header_clip_matches_view(view, header)
 
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         app.processEvents()
         for widget in (tree.header(), table.horizontalHeader(), table.verticalHeader()):
             assert widget.mask().isEmpty()
@@ -143,7 +144,7 @@ def test_tree_and_table_headers_have_no_second_rounded_frame(
         app.processEvents()
         _assert_glass_header_clip_matches_view(tree, tree.header())
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         window.close()
         window.deleteLater()
         app.processEvents()
@@ -181,7 +182,7 @@ def test_glass_clips_headerless_and_model_backed_item_views_on_x11(
     from PySide6.QtGui import QStandardItemModel
     from PySide6.QtWidgets import QListView, QListWidget, QTableView, QTreeView
 
-    ThemeManager.apply_theme('System')
+    leave_glass('System')
     window = QDialog()
     layout = QVBoxLayout(window)
     if view_type == 'list':
@@ -229,7 +230,7 @@ def test_glass_clips_headerless_and_model_backed_item_views_on_x11(
         for child in children:
             _assert_glass_header_clip_matches_view(view, child)
 
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         app.processEvents()
         assert view.graphicsEffect() is None
         for child in children:
@@ -240,7 +241,7 @@ def test_glass_clips_headerless_and_model_backed_item_views_on_x11(
         for child in children:
             _assert_glass_header_clip_matches_view(view, child)
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         window.close()
         window.deleteLater()
         app.processEvents()

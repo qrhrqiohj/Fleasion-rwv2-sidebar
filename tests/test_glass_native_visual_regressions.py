@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from fleasion.config import manager
 from fleasion.gui import glass, replacer_config
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -37,11 +38,11 @@ def app() -> Iterator[QApplication]:
     theme_before = ThemeManager._current_theme  # pyright: ignore[reportPrivateUsage]
     effective_before = ThemeManager._effective_theme  # pyright: ignore[reportPrivateUsage]
     stylesheet_before = application.styleSheet()
-    ThemeManager.apply_theme('Light')
+    leave_glass('Light')
     try:
         yield application
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         ThemeManager.apply_theme(theme_before)
         ThemeManager._effective_theme = effective_before  # pyright: ignore[reportPrivateUsage]
         application.setStyleSheet(stylesheet_before)
@@ -71,7 +72,7 @@ def test_dashboard_created_while_glass_active_restores_opaque_window(
         window.show()
         app.processEvents()
         assert window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         app.processEvents()
         assert not window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         assert not window.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
@@ -79,17 +80,18 @@ def test_dashboard_created_while_glass_active_restores_opaque_window(
         image = window.grab().toImage()
         assert image.pixelColor(window.width() // 2, window.height() // 2).alpha() == 255
         assert image.pixelColor(0, 0).alpha() == 255
-        for theme in ('Glass', 'Dark', 'Glass', 'Light', 'Glass', 'System'):
-            ThemeManager.apply_theme(theme)
+        # Every color mode is Glass; tearing Glass down always restores the window
+        for mode in ('Dark', 'Light', 'System'):
+            ThemeManager.apply_theme(mode)
             app.processEvents()
-            assert window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground) == (
-                theme == 'Glass'
-            )
-            if theme != 'Glass':
-                assert window.mask().isEmpty()
-                assert window.grab().toImage().pixelColor(0, 0).alpha() == 255
+            assert window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            leave_glass(mode)
+            app.processEvents()
+            assert not window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+            assert window.mask().isEmpty()
+            assert window.grab().toImage().pixelColor(0, 0).alpha() == 255
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         window.close()
         window.deleteLater()
         app.processEvents()
@@ -108,7 +110,7 @@ def test_existing_registered_dialog_preserves_custom_mask_after_glass(
     try:
         ThemeManager.apply_theme('Glass')
         app.processEvents()
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         app.processEvents()
         assert window.mask() == initial_mask
         assert not window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -145,7 +147,7 @@ def test_x11_rounded_popups_use_alpha_and_restore_native_shape(
         assert window.isVisible()
         assert window.windowHandle().format().alphaBufferSize() > 0
         assert window.mask().isEmpty()
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         app.processEvents()
         assert window.mask().isEmpty()
     finally:
@@ -162,7 +164,7 @@ def test_x11_rounded_popups_use_alpha_and_restore_native_shape(
 def test_x11_existing_combo_mask_survives_glass_roundtrip(app: QApplication) -> None:
     if QApplication.platformName() != 'xcb':
         pytest.skip('Actual X11 window shape requires the xcb platform')
-    ThemeManager.apply_theme('System')
+    leave_glass('System')
     combo = QComboBox()
     combo.addItems(['First', 'Second'])
     combo.move(175, 190)
@@ -175,7 +177,7 @@ def test_x11_existing_combo_mask_survives_glass_roundtrip(app: QApplication) -> 
     try:
         ThemeManager.apply_theme('Glass')
         QTest.qWait(40)
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         app.processEvents()
         assert popup.mask() == existing_mask
     finally:
@@ -200,11 +202,11 @@ def test_footer_keybind_help_is_flat_in_all_themes(
         ThemeManager.apply_theme('Glass')
         assert button.isFlat()
         assert button.property('glassArrow') is True
-        ThemeManager.apply_theme('System')
+        leave_glass('System')
         assert button.isFlat()
         assert button.property('glassArrow') is None
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         window.close()
         window.deleteLater()
         app.processEvents()
@@ -241,7 +243,7 @@ def test_misc_and_proxy_help_buttons_are_flat_and_small(
                 if theme == 'Glass':
                     assert button.property('glassArrow') is True
     finally:
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         window.close()
         window.deleteLater()
         app.processEvents()

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QRegion
-from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QWidget
+from PySide6.QtGui import QFont, QFontDatabase, QRegion
+from PySide6.QtWidgets import QApplication, QComboBox, QPushButton, QTabWidget, QWidget
 
 from fleasion.localization import tr
 
@@ -32,6 +33,23 @@ def backdrop_label(mode: Backdrop) -> str:
         'wallpaper': tr('settings.appearance.glass_backdrop_wallpaper'),
     }
     return labels[mode]
+
+
+# Preferred UI faces, best first; the platform default is kept when none exist
+_FONT_FAMILIES: dict[str, tuple[str, ...]] = {
+    'win32': ('Segoe UI Variable Text', 'Segoe UI'),
+    'linux': ('Inter', 'Inter Variable', 'Cantarell', 'Noto Sans'),
+}
+
+
+def _glass_font(base: QFont) -> QFont:
+    font = QFont(base)
+    available = set(QFontDatabase.families())
+    for family in _FONT_FAMILIES.get(sys.platform, ()):
+        if family in available:
+            font.setFamily(family)
+            break
+    return font
 
 
 def _app() -> QApplication | None:
@@ -64,6 +82,7 @@ class GlassTheme:
     def __init__(self) -> None:
         self._filter: GlassWindows | None = None
         self._stylesheets = WindowStyles()
+        self._previous_font: QFont | None = None
 
     @property
     def active(self) -> bool:
@@ -87,6 +106,9 @@ class GlassTheme:
             # A stable Wayland app ID lets compositor blur rules (and docks) match us
             app.setDesktopFileName(APP_ID)
         ThemeManager.ensure_widget_style(app, 'Fusion')
+        if entering:
+            self._previous_font = QFont(app.font())
+            app.setFont(_glass_font(app.font()))
         app.setPalette(palette(state.settings, base_palette=base_palette))
         original_popup_masks = (
             {
@@ -119,6 +141,9 @@ class GlassTheme:
         window_filter = self._filter
         app.removeEventFilter(window_filter)
         self._filter = None
+        if self._previous_font is not None:
+            app.setFont(self._previous_font)
+            self._previous_font = None
         self._stylesheets.restore()
         for window in registered_windows():
             apply_chrome(window, enabled=False)
@@ -126,9 +151,12 @@ class GlassTheme:
         window_filter.deleteLater()
         _refresh_windows(app)
 
-    def attach(self, window: QWidget) -> None:
-        """Let Glass replace this window's title bar while the theme is active."""
-        register(window)
+    def attach(self, window: QWidget, *, tabs: QTabWidget | None = None) -> None:
+        """Let Glass replace this window's title bar while the theme is active.
+
+        With ``tabs``, Glass also swaps that tab bar for the pop-out side panel.
+        """
+        register(window, tabs)
         if self._filter is not None:
             self._filter.remember_window(window)
             apply_chrome(window, enabled=True)

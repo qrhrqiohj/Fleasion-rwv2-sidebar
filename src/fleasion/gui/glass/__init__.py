@@ -7,7 +7,8 @@ desktop genuinely shows through. What the glass blurs is configurable:
   via the Blur my Shell extension, see :mod:`.desktop_blur`)
 - ``wallpaper``: the desktop wallpaper, blurred and painted by Fleasion itself
 
-The dashboard also swaps the platform title bar for a glass one.
+The dashboard also swaps the platform title bar for a glass one and moves its
+tabs into a pop-out panel on the left edge (see :mod:`.sidebar`).
 """
 
 from .chrome import register
@@ -20,6 +21,7 @@ from .controller import (
     theme,
 )
 from .desktop_blur import blur
+from .sidebar import ICON_PROPERTY as NAV_ICON, PINNED_PROPERTY as NAV_PINNED
 from .state import (
     ACCENTS,
     BACKDROPS,
@@ -42,6 +44,8 @@ __all__ = [
     'DEFAULT_OPACITY',
     'MAX_OPACITY',
     'MIN_OPACITY',
+    'NAV_ICON',
+    'NAV_PINNED',
     'Backdrop',
     'GlassTheme',
     'backdrop_label',

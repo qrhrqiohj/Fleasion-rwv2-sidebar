@@ -15,14 +15,11 @@ class _StyleLike(Protocol):
     def standardPalette(self) -> QPalette: ...
 
 
-def _apply_forced_theme(app: object, theme: str) -> None:
-    callback = cast('Callable[[object, str], None]', getattr(ThemeManager, '_apply_forced_theme'))
-    callback(app, theme)
-
-
-def _apply_system_theme(app: object) -> None:
-    callback = cast('Callable[[object], None]', getattr(ThemeManager, '_apply_system_theme'))
-    callback(app)
+def _resolve_palette(app: object, mode: str) -> QPalette:
+    callback = cast(
+        'Callable[[object, str], QPalette]', getattr(ThemeManager, '_resolve_palette')
+    )
+    return callback(app, mode)
 
 
 def _windows_system_theme(app: object) -> str:
@@ -87,24 +84,15 @@ class _FakeApp:
         return self._palette
 
 
-def test_panel_colors_keep_forced_dark_palette_independent_colors(
+def test_panel_colors_use_qpalette_before_glass_is_applied(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(ThemeManager, '_current_theme', 'Dark')
+    from fleasion.gui import glass
 
-    colors = ThemeManager.panel_colors(QPalette())
-
-    assert colors.section_background == QColor('#272727')
-    assert colors.section_border == QColor('#3a3a3a')
-    assert colors.container_background_css == 'background-color: palette(window);'
-
-
-def test_panel_colors_use_qpalette_for_system_theme(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(glass.theme, '_filter', None)
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.AlternateBase, QColor('#123456'))
     palette.setColor(QPalette.ColorRole.Mid, QColor('#abcdef'))
-    monkeypatch.setattr(ThemeManager, '_current_theme', 'System')
-    monkeypatch.setattr(ThemeManager, '_effective_theme', 'System')
 
     colors = ThemeManager.panel_colors(palette)
 
@@ -127,196 +115,50 @@ def test_transparent_palette_does_not_replace_saved_native_palette(
     assert ThemeManager._system_palette is native  # pyright: ignore[reportPrivateUsage]
 
 
-def test_apply_forced_dark_sets_explicit_dark_palette(monkeypatch: pytest.MonkeyPatch) -> None:
-    color_scheme_names: list[str] = []
-    monkeypatch.setattr(
-        ThemeManager,
-        '_set_color_scheme',
-        staticmethod(_record_color_scheme(color_scheme_names)),
-    )
-
-    class App:
-        style_name: str | None = None
-        palette: QPalette | None = None
-
-        def setStyle(self, style_name: str) -> None:
-            self.style_name = style_name
-
-        def setPalette(self, palette: QPalette) -> None:
-            self.palette = palette
-
-    app = App()
-
-    _apply_forced_theme(app, 'Dark')
-
-    assert app.style_name == 'Fusion'
-    assert color_scheme_names == ['Dark']
-    assert isinstance(app.palette, QPalette)
-    assert_palette_colors(
-        app.palette,
-        {
-            QPalette.ColorRole.Window: '#323232',
-            QPalette.ColorRole.WindowText: '#f0f0f0',
-            QPalette.ColorRole.Base: '#242424',
-            QPalette.ColorRole.AlternateBase: '#2b2b2b',
-            QPalette.ColorRole.ToolTipBase: '#ffffdc',
-            QPalette.ColorRole.ToolTipText: '#000000',
-            QPalette.ColorRole.Text: '#f0f0f0',
-            QPalette.ColorRole.Button: '#323232',
-            QPalette.ColorRole.ButtonText: '#f0f0f0',
-            QPalette.ColorRole.BrightText: '#4b4b4b',
-            QPalette.ColorRole.Link: '#308cc6',
-            QPalette.ColorRole.Highlight: '#308cc6',
-            QPalette.ColorRole.HighlightedText: '#f0f0f0',
-            QPalette.ColorRole.PlaceholderText: '#80f0f0f0',
-            QPalette.ColorRole.Light: '#4b4b4b',
-            QPalette.ColorRole.Midlight: '#2a2a2a',
-            QPalette.ColorRole.Dark: '#212121',
-            QPalette.ColorRole.Mid: '#262626',
-            QPalette.ColorRole.Shadow: '#191919',
-        },
-    )
-    assert_disabled_palette_colors(
-        app.palette,
-        {
-            QPalette.ColorRole.Text: '#828282',
-            QPalette.ColorRole.ButtonText: '#828282',
-            QPalette.ColorRole.WindowText: '#828282',
-            QPalette.ColorRole.HighlightedText: '#f0f0f0',
-        },
-    )
-
-
-def test_apply_forced_light_sets_explicit_light_palette(monkeypatch: pytest.MonkeyPatch) -> None:
-    color_scheme_names: list[str] = []
-    monkeypatch.setattr(
-        ThemeManager,
-        '_set_color_scheme',
-        staticmethod(_record_color_scheme(color_scheme_names)),
-    )
-
-    class App:
-        style_name: str | None = None
-        palette: QPalette | None = None
-
-        def setStyle(self, style_name: str) -> None:
-            self.style_name = style_name
-
-        def setPalette(self, palette: QPalette) -> None:
-            self.palette = palette
-
-    app = App()
-
-    _apply_forced_theme(app, 'Light')
-
-    assert app.style_name == 'Fusion'
-    assert color_scheme_names == ['Light']
-    assert isinstance(app.palette, QPalette)
-    assert_palette_colors(
-        app.palette,
-        {
-            QPalette.ColorRole.Window: '#efefef',
-            QPalette.ColorRole.WindowText: '#000000',
-            QPalette.ColorRole.Base: '#ffffff',
-            QPalette.ColorRole.AlternateBase: '#f7f7f7',
-            QPalette.ColorRole.ToolTipBase: '#ffffdc',
-            QPalette.ColorRole.ToolTipText: '#000000',
-            QPalette.ColorRole.Text: '#000000',
-            QPalette.ColorRole.Button: '#efefef',
-            QPalette.ColorRole.ButtonText: '#000000',
-            QPalette.ColorRole.BrightText: '#ffffff',
-            QPalette.ColorRole.Link: '#0000ff',
-            QPalette.ColorRole.Highlight: '#308cc6',
-            QPalette.ColorRole.HighlightedText: '#ffffff',
-            QPalette.ColorRole.PlaceholderText: '#80000000',
-            QPalette.ColorRole.Light: '#ffffff',
-            QPalette.ColorRole.Midlight: '#cacaca',
-            QPalette.ColorRole.Dark: '#9f9f9f',
-            QPalette.ColorRole.Mid: '#b8b8b8',
-            QPalette.ColorRole.Shadow: '#767676',
-        },
-    )
-    assert_disabled_palette_colors(
-        app.palette,
-        {
-            QPalette.ColorRole.Text: '#bebebe',
-            QPalette.ColorRole.ButtonText: '#bebebe',
-            QPalette.ColorRole.WindowText: '#bebebe',
-            QPalette.ColorRole.HighlightedText: '#ffffff',
-        },
-    )
-
-
-def assert_palette_colors(palette: QPalette, expected: Mapping[QPalette.ColorRole, str]) -> None:
-    for role, color_name in expected.items():
-        assert palette.color(QPalette.ColorGroup.Active, role) == QColor(color_name)
-
-
-def assert_disabled_palette_colors(
-    palette: QPalette, expected: Mapping[QPalette.ColorRole, str]
+@pytest.mark.parametrize(('mode', 'window'), [('Dark', '#323232'), ('Light', '#efefef')])
+def test_forced_modes_resolve_fleasion_palettes(
+    monkeypatch: pytest.MonkeyPatch, mode: str, window: str
 ) -> None:
-    for role, color_name in expected.items():
-        assert palette.color(QPalette.ColorGroup.Disabled, role) == QColor(color_name)
+    schemes: list[str] = []
+    monkeypatch.setattr(ThemeManager, '_set_color_scheme', staticmethod(_record_color_scheme(schemes)))
+
+    palette = _resolve_palette(_FakeApp(), mode)
+
+    assert palette.color(QPalette.ColorRole.Window) == QColor(window)
+    assert schemes == [mode]
 
 
-def test_windows_system_theme_routes_dark_to_fleasion_dark_palette(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ('system', 'window'), [(_dark_system_theme, '#323232'), (_light_system_theme, '#efefef')]
+)
+def test_windows_system_mode_follows_the_os_preference(
+    monkeypatch: pytest.MonkeyPatch, system: Callable[[object], str], window: str
 ) -> None:
     monkeypatch.setattr(sys, 'platform', 'win32')
-    monkeypatch.setattr(ThemeManager, '_current_theme', 'System')
     monkeypatch.setattr(ThemeManager, '_effective_theme', 'System')
-    monkeypatch.setattr(
-        ThemeManager,
-        '_set_color_scheme',
-        staticmethod(_set_color_scheme_noop),
-    )
-    monkeypatch.setattr(
-        ThemeManager,
-        '_windows_system_theme',
-        staticmethod(_dark_system_theme),
-    )
-    app = _FakeApp()
+    monkeypatch.setattr(ThemeManager, '_set_color_scheme', staticmethod(_set_color_scheme_noop))
+    monkeypatch.setattr(ThemeManager, '_windows_system_theme', staticmethod(system))
 
-    _apply_system_theme(app)
+    palette = _resolve_palette(_FakeApp(), 'System')
 
-    assert _theme_state('_current_theme') == 'System'
-    assert _theme_state('_effective_theme') == 'Dark'
-    assert app.style_name == 'Fusion'
-    assert isinstance(app.applied_palette, QPalette)
-    assert app.applied_palette.color(QPalette.ColorRole.Window) == QColor('#323232')
-    assert app.applied_palette.color(QPalette.ColorRole.Base) == QColor('#242424')
-    colors = ThemeManager.panel_colors(app.applied_palette)
-    assert colors.section_background == QColor('#272727')
-    assert colors.container_background_css == 'background-color: palette(window);'
+    assert palette.color(QPalette.ColorRole.Window) == QColor(window)
+    assert _theme_state('_effective_theme') == system(None)
 
 
-def test_windows_system_theme_routes_light_to_fleasion_light_palette(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize('platform', ['darwin', 'linux'])
+def test_other_platforms_tint_glass_from_the_native_palette(
+    monkeypatch: pytest.MonkeyPatch, platform: str
 ) -> None:
-    monkeypatch.setattr(sys, 'platform', 'win32')
-    monkeypatch.setattr(ThemeManager, '_current_theme', 'System')
-    monkeypatch.setattr(ThemeManager, '_effective_theme', 'System')
-    monkeypatch.setattr(
-        ThemeManager,
-        '_set_color_scheme',
-        staticmethod(_set_color_scheme_noop),
-    )
-    monkeypatch.setattr(
-        ThemeManager,
-        '_windows_system_theme',
-        staticmethod(_light_system_theme),
-    )
-    app = _FakeApp()
+    native = QPalette()
+    native.setColor(QPalette.ColorRole.Window, QColor('#2a3b4c'))
+    monkeypatch.setattr(sys, 'platform', platform)
+    monkeypatch.setattr(ThemeManager, '_system_palette', native)
+    monkeypatch.setattr(ThemeManager, '_set_color_scheme', staticmethod(_set_color_scheme_noop))
 
-    _apply_system_theme(app)
+    palette = _resolve_palette(_FakeApp(), 'System')
 
-    assert _theme_state('_current_theme') == 'System'
-    assert _theme_state('_effective_theme') == 'Light'
-    assert isinstance(app.applied_palette, QPalette)
-    assert app.applied_palette.color(QPalette.ColorRole.Window) == QColor('#efefef')
-    assert app.applied_palette.color(QPalette.ColorRole.Base) == QColor('#ffffff')
-    colors = ThemeManager.panel_colors(app.applied_palette)
-    assert colors.section_background == QColor('#f0f0f0')
+    assert palette.color(QPalette.ColorRole.Window) == QColor('#2a3b4c')
+    assert palette is not native
 
 
 def test_windows_system_theme_reads_apps_use_light_theme_registry(
@@ -349,44 +191,3 @@ def test_windows_system_theme_reads_apps_use_light_theme_registry(
     assert _windows_system_theme(_FakeApp()) == 'Dark'
     values['AppsUseLightTheme'] = 1
     assert _windows_system_theme(_FakeApp()) == 'Light'
-
-
-def test_macos_system_theme_keeps_qt_system_palette(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, 'platform', 'darwin')
-    monkeypatch.setattr(ThemeManager, '_current_theme', 'System')
-    monkeypatch.setattr(ThemeManager, '_effective_theme', 'Dark')
-    color_scheme_names: list[str] = []
-    monkeypatch.setattr(
-        ThemeManager,
-        '_set_color_scheme',
-        staticmethod(_record_color_scheme(color_scheme_names)),
-    )
-    system_palette = QPalette()
-    system_palette.setColor(QPalette.ColorRole.Window, QColor('#123456'))
-    app = _FakeApp(style=_FakeStyle('macos', system_palette))
-
-    _apply_system_theme(app)
-
-    assert color_scheme_names == ['Unknown']
-    assert _theme_state('_effective_theme') == 'System'
-    assert app.style_name == 'Fusion'
-    assert isinstance(app.applied_palette, QPalette)
-    assert app.applied_palette.color(QPalette.ColorRole.Window) == QColor('#123456')
-
-
-def test_linux_system_theme_still_restores_global_qt_style(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, 'platform', 'linux')
-    monkeypatch.setattr(ThemeManager, '_system_style_name', 'breeze')
-    monkeypatch.setattr(ThemeManager, '_effective_theme', 'Dark')
-    monkeypatch.setattr(
-        ThemeManager,
-        '_set_color_scheme',
-        staticmethod(_set_color_scheme_noop),
-    )
-    app = _FakeApp(style=_FakeStyle('Fusion'))
-
-    _apply_system_theme(app)
-
-    assert _theme_state('_effective_theme') == 'System'
-    assert app.style_name == 'breeze'
-    assert isinstance(app.applied_palette, QPalette)

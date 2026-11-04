@@ -1,4 +1,4 @@
-"""Glass title bar and edge resizing for frameless dashboard windows."""
+"""Glass title bar, edge resizing and side navigation for frameless dashboard windows."""
 
 from __future__ import annotations
 
@@ -14,10 +14,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QTabWidget,
     QWidget,
 )
 from shiboken6 import isValid
 
+from .sidebar import GlassSidebar
 from .style import icon_path
 from .transparency import enable_transparency
 
@@ -28,11 +30,12 @@ if TYPE_CHECKING:
 
 type WindowButton = Literal['min', 'max', 'close']
 
-_TITLE_BAR_HEIGHT: Final = 46
-_ICON_SIZE: Final = QSize(20, 20)
-_BUTTON_ICON_SIZE: Final = QSize(14, 14)
+_TITLE_BAR_HEIGHT: Final = 40
+_ICON_SIZE: Final = QSize(16, 16)
+_BUTTON_ICON_SIZE: Final = QSize(16, 16)
 _RESIZE_MARGIN: Final = 6
-_CHROME_MARGINS: Final = (4, 0, 4, 4)
+# Equal on every side; the navigation handle lives inside the page padding
+_CHROME_MARGINS: Final = (6, 0, 6, 6)
 
 
 def _window_handle(window: QWidget) -> QWindow | None:
@@ -41,7 +44,7 @@ def _window_handle(window: QWidget) -> QWindow | None:
 
 
 class GlassTitleBar(QWidget):
-    """Draggable glass header with pill window controls."""
+    """Draggable glass header: icon, title, current page and quiet window controls."""
 
     def __init__(self, window: QWidget) -> None:
         super().__init__(window)
@@ -49,22 +52,29 @@ class GlassTitleBar(QWidget):
         self.setObjectName('GlassTitleBar')
         self.setFixedHeight(_TITLE_BAR_HEIGHT)
         row = QHBoxLayout(self)
-        row.setContentsMargins(14, 8, 10, 2)
+        row.setContentsMargins(16, 0, 8, 0)
         row.setSpacing(8)
 
-        icon = QLabel()
-        app_icon = window.windowIcon()
-        if app_icon.isNull():
-            app_icon = QApplication.windowIcon()
-        if not app_icon.isNull():
-            icon.setPixmap(app_icon.pixmap(_ICON_SIZE))
+        self._icon = QLabel()
+        self._icon.setObjectName('GlassTitleIcon')
+        self._refresh_icon()
+        window.windowIconChanged.connect(self._refresh_icon)
+        icon = self._icon
         title = QLabel(window.windowTitle())
         title.setObjectName('GlassTitle')
         window.windowTitleChanged.connect(title.setText)
+        # Where you are, now that the tab bar lives in the side panel
+        self._subtitle = QLabel()
+        self._subtitle.setObjectName('GlassSubtitle')
+        self._subtitle.hide()
         row.addWidget(icon)
         row.addWidget(title)
+        row.addWidget(self._subtitle)
         row.addStretch()
 
+        controls = QHBoxLayout()
+        controls.setSpacing(2)
+        row.addLayout(controls)
         buttons: tuple[WindowButton, ...] = ('min', 'max', 'close')
         for role in buttons:
             button = QPushButton()
@@ -74,7 +84,22 @@ class GlassTitleBar(QWidget):
             button.setProperty('role', role)
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button.clicked.connect(self._presser(role))
-            row.addWidget(button)
+            controls.addWidget(button)
+
+    def _refresh_icon(self, *_args: object) -> None:
+        app_icon = self._window.windowIcon()
+        if app_icon.isNull():
+            app_icon = QApplication.windowIcon()
+        if app_icon.isNull():
+            # An empty label would still push the title away from the corner
+            self._icon.hide()
+            return
+        self._icon.setPixmap(app_icon.pixmap(_ICON_SIZE, self.devicePixelRatioF()))
+        self._icon.show()
+
+    def set_subtitle(self, text: str) -> None:
+        self._subtitle.setText(f'\u203a  {text}' if text else '')
+        self._subtitle.setVisible(bool(text))
 
     @override
     def changeEvent(self, event: QEvent) -> None:
@@ -254,15 +279,25 @@ class _Chrome:
     title_bar: GlassTitleBar
     resizer: EdgeResizer
     original_margins: tuple[int, int, int, int]
+    sidebar: GlassSidebar | None = None
 
 
 _installed: WeakKeyDictionary[QWidget, _Chrome] = WeakKeyDictionary()
 _capable: WeakKeyDictionary[QWidget, bool] = WeakKeyDictionary()
+_navigation: WeakKeyDictionary[QWidget, QTabWidget] = WeakKeyDictionary()
 
 
-def register(window: QWidget) -> None:
-    """Mark a window whose platform title bar Glass may replace."""
-    if window in _capable or not isValid(window):
+def register(window: QWidget, tabs: QTabWidget | None = None) -> None:
+    """Mark a window whose platform title bar Glass may replace.
+
+    With ``tabs``, Glass also moves that tab widget's tabs into a pop-out
+    panel on the window's left edge.
+    """
+    if not isValid(window):
+        return
+    if tabs is not None and isValid(tabs):
+        _navigation[window] = tabs
+    if window in _capable:
         return
     _capable[window] = True
     reference = ref(window)
@@ -271,6 +306,7 @@ def register(window: QWidget) -> None:
         if (deleted := reference()) is not None:
             _installed.pop(deleted, None)
             _capable.pop(deleted, None)
+            _navigation.pop(deleted, None)
 
     window.destroyed.connect(forget)
 
@@ -284,22 +320,34 @@ def _layout(window: QWidget) -> QBoxLayout | None:
     return layout if isinstance(layout, QBoxLayout) else None
 
 
+def _sidebar(window: QWidget, title_bar: GlassTitleBar) -> GlassSidebar | None:
+    tabs = _navigation.get(window)
+    if tabs is None or not isValid(tabs) or tabs.window() is not window:
+        return None
+    return GlassSidebar(window, tabs, title_bar)
+
+
 def apply_chrome(window: QWidget, *, enabled: bool) -> None:
     """Swap the platform title bar for the glass one, or restore it."""
     if not isValid(window):
         _installed.pop(window, None)
         _capable.pop(window, None)
+        _navigation.pop(window, None)
         return
     layout = _layout(window)
     chrome = _installed.get(window)
     if enabled and chrome is None and layout is not None:
         margins = layout.contentsMargins()
         original_margins = (margins.left(), margins.top(), margins.right(), margins.bottom())
-        chrome = _Chrome(GlassTitleBar(window), EdgeResizer(window), original_margins)
-        layout.insertWidget(0, chrome.title_bar)
+        title_bar = GlassTitleBar(window)
+        layout.insertWidget(0, title_bar)
+        sidebar = _sidebar(window, title_bar)
+        chrome = _Chrome(title_bar, EdgeResizer(window), original_margins, sidebar)
         layout.setContentsMargins(*_CHROME_MARGINS)
         _installed[window] = chrome
     elif not enabled and chrome is not None:
+        if chrome.sidebar is not None:
+            chrome.sidebar.detach()
         if layout is not None:
             layout.removeWidget(chrome.title_bar)
             layout.setContentsMargins(*chrome.original_margins)

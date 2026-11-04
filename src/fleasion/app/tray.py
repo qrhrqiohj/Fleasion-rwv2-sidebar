@@ -43,7 +43,7 @@ from fleasion.app.elevation import (
     relaunch_as_admin as _relaunch_as_admin,
 )
 from fleasion.app.restart import restart_fleasion_normally
-from fleasion.appearance import ACCENTS, COLOR_MODES, STYLES
+from fleasion.appearance import ACCENTS, COLOR_MODES
 from fleasion.gui import (
     AboutWindow,
     DeleteCacheWindow,
@@ -456,11 +456,9 @@ class SystemTray:
         settings_menu.addSeparator()
 
         appearance_menu = QMenu(tr('settings.appearance.section'), settings_menu)
-        self.style_actions: dict[str, QAction] = {}
         self.color_mode_actions: dict[str, QAction] = {}
         self.accent_actions: dict[str, QAction] = {}
         for key, label, choices, actions in (
-            ('style', tr('settings.appearance.style'), STYLES, self.style_actions),
             (
                 'color_mode',
                 tr('settings.appearance.color_mode'),
@@ -473,7 +471,7 @@ class SystemTray:
             group = QActionGroup(submenu)
             group.setExclusive(True)
             for name in choices:
-                text = choice_label(name) if key != 'accent' and name != 'Fusion' else name
+                text = choice_label(name) if key != 'accent' else name
                 action = QAction(text, submenu)
                 if key == 'accent':
                     action.setIcon(swatch_icon(name))
@@ -732,7 +730,6 @@ class SystemTray:
 
     def _sync_appearance_actions(self) -> None:
         for actions, current in (
-            (self.style_actions, self.config_manager.appearance_style),
             (self.color_mode_actions, self.config_manager.color_mode),
             (self.accent_actions, self.config_manager.accent_color),
         ):
@@ -740,9 +737,9 @@ class SystemTray:
                 action.setChecked(name == current)
 
     def _set_appearance(self, key: str, value: str, _checked: bool = False) -> None:
-        if key in {'style', 'color_mode', 'accent'}:
+        if key in {'color_mode', 'accent'}:
             ThemeManager.set_preference(
-                self.config_manager, cast("Literal['style', 'color_mode', 'accent']", key), value
+                self.config_manager, cast("Literal['color_mode', 'accent']", key), value
             )
 
     def set_theme(self, theme: str) -> None:

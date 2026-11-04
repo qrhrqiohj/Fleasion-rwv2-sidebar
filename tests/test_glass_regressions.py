@@ -28,6 +28,7 @@ from fleasion.gui.glass import surface
 from fleasion.gui.glass import wallpaper
 from fleasion.gui.settings_tab import SettingsTab
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 from fleasion.appearance.colors import contrast
 
 if TYPE_CHECKING:
@@ -49,9 +50,9 @@ def app(monkeypatch: pytest.MonkeyPatch) -> Iterator[QApplication]:
     instance = QApplication.instance()
     application = instance if isinstance(instance, QApplication) else QApplication([])
     previous_theme = str(getattr(ThemeManager, '_current_theme'))
-    for name in ('_current_theme', '_effective_theme', '_system_style_name'):
+    for name in ('_current_theme', '_effective_theme'):
         monkeypatch.setattr(ThemeManager, name, getattr(ThemeManager, name))
-    ThemeManager.apply_theme('Light')
+    leave_glass('Light')
     yield application
     ThemeManager.apply_theme(previous_theme)
     application.processEvents()
@@ -146,7 +147,7 @@ def test_dialog_surface_survives_theme_round_trip(app: QApplication, existing: b
         assert dialog.grab().toImage().pixelColor(50, 50).alpha() > 0
         # Reapplying an accent must preserve the original attributes
         glass.theme.enable(app)
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         app.processEvents()
         assert not dialog.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         assert not dialog.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
@@ -163,7 +164,7 @@ def test_preexisting_translucent_surface_is_preserved(app: QApplication) -> None
     app.processEvents()
     try:
         ThemeManager.apply_theme('Glass')
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         assert dialog.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         assert dialog.testAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
     finally:
@@ -319,7 +320,7 @@ def test_secondary_window_uses_opaque_fallback_when_frame_requires_it(
         alpha = dialog.grab().toImage().pixelColor(50, 50).alpha()
         assert alpha == 255 if not frameless else alpha > 0
         assert bool(dialog.windowFlags() & Qt.WindowType.FramelessWindowHint) == frameless
-        ThemeManager.apply_theme('Light')
+        leave_glass('Light')
         assert not dialog.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     finally:
         dialog.close()
@@ -336,7 +337,8 @@ def test_tray_theme_refresh_updates_glass_controls(
         for theme in ('Glass', 'Light', 'Glass'):
             config.theme = theme
             tab.refresh_from_config()
-            assert tab._backdrop_combo.isHidden() == (theme != 'Glass')  # pyright: ignore[reportPrivateUsage]
+            # Glass is always on, so its controls always show
+            assert not tab._backdrop_combo.isHidden()  # pyright: ignore[reportPrivateUsage]
     finally:
         tab.deleteLater()
         app.processEvents()
@@ -372,9 +374,9 @@ def test_destroyed_glass_dashboard_does_not_break_theme_changes(app: QApplicatio
     assert window not in chrome._installed  # pyright: ignore[reportPrivateUsage]
     # Both enumeration and a direct stale reference must be harmless
     chrome.apply_chrome(window, enabled=False)
-    ThemeManager.apply_theme('Light')
+    leave_glass('Light')
     ThemeManager.apply_theme('Glass')
-    ThemeManager.apply_theme('Light')
+    leave_glass('Light')
 
 
 @pytest.mark.parametrize('initial', ['Glass', 'Light'])
@@ -383,13 +385,20 @@ def test_palette_style_tracks_theme_changes(app: QApplication, initial: str) -> 
     parent = QWidget()
     palette = CommandPalette(parent, lambda: [])
     try:
+        # Every theme is Glass now, which styles the palette card itself
         for theme in ('Glass', 'Light', 'Dark', 'Glass', 'Light'):
             ThemeManager.apply_theme(theme)
             palette.popup()
             app.processEvents()
             assert contrast(palette.results.palette().text().color(), app.palette().window().color()) >= 4.5
-            assert bool(palette.styleSheet()) == (theme != 'Glass')
+            assert palette.styleSheet() == ''
             palette.close()
+        # Without Glass (only during teardown) the palette falls back to its own style
+        leave_glass('Light')
+        palette.popup()
+        app.processEvents()
+        assert palette.styleSheet() != ''
+        palette.close()
     finally:
         parent.deleteLater()
         app.processEvents()

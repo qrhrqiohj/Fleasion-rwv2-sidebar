@@ -30,7 +30,11 @@ def _theme_palette(name: str) -> QPalette:
 def _render_combo(palette: QPalette, *, enabled: bool) -> tuple[DropdownComboBox, QImage, QRect]:
     app = _qapp()
     combo = DropdownComboBox()
-    combo.setStyle(QStyleFactory.create('Fusion'))
+    # Parent the style to the combo: an unowned temporary is garbage collected
+    # while the widget still uses it, and Glass's window stylesheet wraps it
+    style = QStyleFactory.create('Fusion')
+    style.setParent(combo)
+    combo.setStyle(style)
     combo.setPalette(palette)
     combo.addItem('Auto')
     combo.resize(180, 28)

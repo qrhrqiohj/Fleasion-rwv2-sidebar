@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 
 from fleasion.app.dialogs.startup import show_run_on_boot_failure
 from fleasion.app.roblox_launch import arm_windows_gdk_env_proxy_when_ready
-from fleasion.appearance import COLOR_MODES, STYLES
+from fleasion.appearance import COLOR_MODES
 from fleasion.gui import glass
 from fleasion.gui.appearance_controls import AccentSelector, choice_label
 from fleasion.gui.theme import ThemeManager
@@ -276,7 +276,6 @@ class SettingsTab(QWidget):
     def _build_appearance_section(self) -> CollapsibleSection:
         section = CollapsibleSection(tr('settings.appearance.section'), expanded=True)
 
-        self._style_buttons: dict[str, QRadioButton] = {}
         self._color_buttons: dict[str, QRadioButton] = {}
         options = QWidget()
         rows = QGridLayout(options)
@@ -286,13 +285,6 @@ class SettingsTab(QWidget):
         rows.setColumnStretch(1, 1)
         for row_index, (key, label, choices, current, buttons) in enumerate(
             (
-                (
-                    'style',
-                    tr('settings.appearance.style'),
-                    STYLES,
-                    self._config.appearance_style,
-                    self._style_buttons,
-                ),
                 (
                     'color_mode',
                     tr('settings.appearance.color_mode'),
@@ -323,11 +315,9 @@ class SettingsTab(QWidget):
         self._accent_selector.accent_changed.connect(partial(self._set_appearance, 'accent'))
         accent_label = QLabel(tr('settings.appearance.accent'))
         accent_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        rows.addWidget(accent_label, 2, 0)
-        rows.addWidget(self._accent_selector, 2, 1, alignment=Qt.AlignmentFlag.AlignLeft)
-        self._glass_widgets = self._build_glass_controls(
-            rows, visible=self._config.appearance_style == 'Glass'
-        )
+        rows.addWidget(accent_label, 1, 0)
+        rows.addWidget(self._accent_selector, 1, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self._build_glass_controls(rows)
         section.add_widget(options)
         ThemeManager.events().changed.connect(self._refresh_appearance)
 
@@ -819,7 +809,7 @@ class SettingsTab(QWidget):
         window = delete_cache.DeleteCacheWindow()
         window.show()
 
-    def _build_glass_controls(self, rows: QGridLayout, *, visible: bool) -> tuple[QWidget, ...]:
+    def _build_glass_controls(self, rows: QGridLayout) -> None:
         """Backdrop, opacity and desktop-blur toggle for Glass."""
         self._backdrop_combo = QComboBox()
         self._backdrop_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
@@ -833,8 +823,8 @@ class SettingsTab(QWidget):
         )
         self._backdrop_combo.currentIndexChanged.connect(self._on_glass_backdrop_changed)
         backdrop_label = QLabel(tr('settings.appearance.backdrop'))
-        rows.addWidget(backdrop_label, 3, 0)
-        rows.addWidget(self._backdrop_combo, 3, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        rows.addWidget(backdrop_label, 2, 0)
+        rows.addWidget(self._backdrop_combo, 2, 1, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self._opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self._opacity_slider.setRange(
@@ -844,7 +834,7 @@ class SettingsTab(QWidget):
         self._opacity_slider.setValue(round(self._config.glass_opacity * 100))
         self._opacity_slider.valueChanged.connect(self._on_glass_opacity_changed)
         self._opacity_label = QLabel()
-        rows.addWidget(self._opacity_label, 4, 0)
+        rows.addWidget(self._opacity_label, 3, 0)
         opacity_controls = QWidget()
         opacity_controls.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         opacity_row = QHBoxLayout(opacity_controls)
@@ -855,18 +845,14 @@ class SettingsTab(QWidget):
         )
         self._opacity_slider.valueChanged.connect(self._update_opacity_value)
         opacity_row.addWidget(self._opacity_value)
-        rows.addWidget(opacity_controls, 4, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        rows.addWidget(opacity_controls, 3, 1, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self._blur_button = QPushButton()
         self._blur_button.setObjectName(glass.BLUR_BUTTON)
         self._blur_button.clicked.connect(self._toggle_desktop_blur)
         self._blur_button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        rows.addWidget(self._blur_button, 5, 1, alignment=Qt.AlignmentFlag.AlignLeft)
-        widgets = (backdrop_label, self._backdrop_combo, self._opacity_label, opacity_controls)
-        for widget in widgets:
-            widget.setVisible(visible)
+        rows.addWidget(self._blur_button, 4, 1, alignment=Qt.AlignmentFlag.AlignLeft)
         self._refresh_blur_button()
-        return widgets
 
     def _update_opacity_value(self, value: int) -> None:
         self._opacity_value.setText(tr('settings.appearance.opacity_value', value0=value))
@@ -899,9 +885,7 @@ class SettingsTab(QWidget):
         )
         self._blur_button.setToolTip(tr('settings.appearance.glass_blur_scope'))
         self._blur_button.setVisible(
-            self._config.appearance_style == 'Glass'
-            and status != 'unavailable'
-            and self._config.glass_backdrop == 'desktop'
+            status != 'unavailable' and self._config.glass_backdrop == 'desktop'
         )
         if status == 'on':
             self._blur_button.setText(tr('settings.appearance.glass_blur_on'))
@@ -923,15 +907,9 @@ class SettingsTab(QWidget):
             )
 
     def _refresh_appearance(self) -> None:
-        for widget in self._glass_widgets:
-            widget.setVisible(self._config.appearance_style == 'Glass')
-        for buttons, current in (
-            (self._style_buttons, self._config.appearance_style),
-            (self._color_buttons, self._config.color_mode),
-        ):
-            for name, button in buttons.items():
-                with QSignalBlocker(button):
-                    button.setChecked(name == current)
+        for name, button in self._color_buttons.items():
+            with QSignalBlocker(button):
+                button.setChecked(name == self._config.color_mode)
         self._accent_selector.set_accent(self._config.accent_color)
         self._refresh_blur_button()
 
@@ -940,9 +918,9 @@ class SettingsTab(QWidget):
             self._set_appearance(key, value)
 
     def _set_appearance(self, key: str, value: str) -> None:
-        if key in {'style', 'color_mode', 'accent'}:
+        if key in {'color_mode', 'accent'}:
             ThemeManager.set_preference(
-                self._config, cast("Literal['style', 'color_mode', 'accent']", key), value
+                self._config, cast("Literal['color_mode', 'accent']", key), value
             )
 
     def _on_open_dashboard_toggled(self, checked: bool) -> None:

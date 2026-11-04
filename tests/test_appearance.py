@@ -1,4 +1,4 @@
-"""Independent appearance preferences, migration, and palette integration."""
+"""Appearance preferences (Glass color mode and accent), migration, and palettes."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton
 
-from fleasion.appearance import ACCENTS, COLOR_MODES, STYLES
+from fleasion.appearance import ACCENTS, COLOR_MODES
 from fleasion.appearance.colors import contrast
 from fleasion.app.tray import SystemTray
 from fleasion.config import manager
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-    from fleasion.appearance import AppearanceStyle, ColorMode
+    from fleasion.appearance import ColorMode
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def app(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[QApplicatio
     original = QPalette(application.palette())
     monkeypatch.setattr(glass_style, 'ICON_DIR', tmp_path / 'icons')
     yield application
-    ThemeManager.apply_theme('Light')
+    glass.theme.disable(application)
     application.setPalette(original)
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     application.processEvents()
@@ -69,7 +69,7 @@ def test_migrate_combined_theme_preserves_existing_choices(
         }
     )
     config.settings = loaded
-    assert config.appearance_style == ('Glass' if legacy == 'Glass' else 'Fusion')
+    assert 'appearance_style' not in loaded
     assert config.color_mode == ('Dark' if legacy == 'Glass' else legacy)
     assert config.accent_color == 'Violet'
     assert config.glass_opacity == 0.72
@@ -88,45 +88,35 @@ def test_new_preferences_win_over_legacy_values(config: manager.ConfigManager) -
             'accent_color': 'Teal',
         }
     )
-    assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Fusion',
-        'Light',
-        'Teal',
-    )
+    # A saved Fusion style is dropped; its color mode and accent carry over to Glass
+    assert 'appearance_style' not in config.settings
+    assert (config.color_mode, config.accent_color) == ('Light', 'Teal')
 
 
 def test_defaults_validation_and_persistence(config: manager.ConfigManager) -> None:
-    assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Fusion',
-        'System',
-        'Ice',
-    )
-    config.appearance_style = 'Glass'
+    assert (config.color_mode, config.accent_color) == ('System', 'Ice')
+    # Glass starts fully tinted
+    assert config.glass_opacity == 1.0
     config.color_mode = 'Light'
     config.accent_color = 'Coral'
     config = manager.ConfigManager()
-    assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Glass',
-        'Light',
-        'Coral',
-    )
-    config.settings.update(appearance_style=['bad'], color_mode=42, accent_color={'bad': True})
-    assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Fusion',
+    assert (config.color_mode, config.accent_color) == ('Light', 'Coral')
+    config.settings.update(color_mode=42, accent_color={'bad': True}, glass_opacity='bad')
+    assert (config.color_mode, config.accent_color, config.glass_opacity) == (
         'System',
         'Ice',
+        1.0,
     )
 
 
-@pytest.mark.parametrize('style', STYLES)
 @pytest.mark.parametrize('mode', COLOR_MODES)
 @pytest.mark.parametrize('accent', ACCENTS)
 def test_all_combinations_have_readable_palettes(
-    app: QApplication, style: AppearanceStyle, mode: ColorMode, accent: str
+    app: QApplication, mode: ColorMode, accent: str
 ) -> None:
-    ThemeManager.apply_appearance(style, mode, accent)
+    ThemeManager.apply_appearance(mode, accent)
     palette = app.palette()
-    assert glass.theme.active == (style == 'Glass')
+    assert glass.theme.active
     assert contrast(palette.text().color(), palette.base().color()) >= 4.5
     assert contrast(palette.highlightedText().color(), palette.highlight().color()) >= 4.5
     assert contrast(palette.link().color(), palette.base().color()) >= 4.5
@@ -134,24 +124,23 @@ def test_all_combinations_have_readable_palettes(
         assert (palette.window().color().lightness() < 128) == (mode == 'Dark')
 
 
-def test_switching_style_preserves_mode_accent_and_glass_settings(
+def test_switching_color_mode_preserves_accent_and_glass_settings(
     app: QApplication, config: manager.ConfigManager
 ) -> None:
-    config.color_mode = 'Light'
     config.accent_color = 'Amber'
     config.glass_opacity = 0.68
     config.glass_backdrop = 'wallpaper'
-    for style in ('Glass', 'Fusion', 'Glass'):
-        ThemeManager.set_preference(config, 'style', style)
-        assert config.color_mode == 'Light'
+    for mode in ('Light', 'Dark', 'Light'):
+        ThemeManager.set_preference(config, 'color_mode', mode)
+        assert glass.theme.active
         assert config.accent_color == 'Amber'
         assert config.glass_opacity == 0.68
         assert config.glass_backdrop == 'wallpaper'
         assert state.settings.accent == 'Amber'
-        assert app.palette().window().color().lightness() > 128
+        assert state.dark == (mode == 'Dark')
 
 
-def test_linux_system_keeps_native_style_and_glass_uses_native_colors(
+def test_linux_system_glass_uses_native_colors(
     app: QApplication, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import fleasion.gui.theme as theme_module
@@ -163,32 +152,24 @@ def test_linux_system_keeps_native_style_and_glass_uses_native_colors(
     native.setColor(QPalette.ColorRole.Base, QColor('#f4fff0'))
     native.setColor(QPalette.ColorRole.Text, QColor('#0f2414'))
     monkeypatch.setattr(ThemeManager, '_system_palette', native)
-    monkeypatch.setattr(ThemeManager, '_system_style_name', 'Windows')
-    ThemeManager.apply_appearance('Fusion', 'System', 'Rose')
-    assert app.style().objectName() == 'windows'
-    assert app.palette().window().color().rgb() == native.window().color().rgb()
-    ThemeManager.apply_appearance('Glass', 'System', 'Rose')
+    ThemeManager.apply_appearance('System', 'Rose')
     assert glass.theme.active
     assert app.palette().window().color().rgb() == native.window().color().rgb()
     assert app.palette().text().color() == native.text().color()
     assert glass_style.glass_colors().well == native.base().color()
-    ThemeManager.apply_appearance('Fusion', 'System', 'Rose')
-    assert app.style().objectName() == 'windows'
-    assert app.palette().window().color() == native.window().color()
 
 
-@pytest.mark.parametrize('style', STYLES)
 @pytest.mark.parametrize('light', [False, True])
-def test_windows_system_resolves_os_preference_without_changing_style(
-    app: QApplication, monkeypatch: pytest.MonkeyPatch, style: AppearanceStyle, light: bool
+def test_windows_system_resolves_os_preference(
+    app: QApplication, monkeypatch: pytest.MonkeyPatch, light: bool
 ) -> None:
     import fleasion.gui.theme as theme_module
 
     monkeypatch.setattr(theme_module.sys, 'platform', 'win32')
     monkeypatch.setattr(theme_module, '_windows_apps_use_light_theme', lambda: light)
-    ThemeManager.apply_appearance(style, 'System', 'Mint')
-    assert glass.theme.active == (style == 'Glass')
-    assert (app.palette().window().color().lightness() > 128) == light
+    ThemeManager.apply_appearance('System', 'Mint')
+    assert glass.theme.active
+    assert state.dark != light
 
 
 def test_external_native_palette_update_refreshes_system_glass(
@@ -197,7 +178,7 @@ def test_external_native_palette_update_refreshes_system_glass(
     import fleasion.gui.theme as theme_module
 
     monkeypatch.setattr(theme_module.sys, 'platform', 'linux')
-    ThemeManager.apply_appearance('Glass', 'System', 'Violet')
+    ThemeManager.apply_appearance('System', 'Violet')
     native = QPalette(app.palette())
     native.setColor(QPalette.ColorRole.Window, QColor('#253029'))
     native.setColor(QPalette.ColorRole.WindowText, QColor('#ecfff0'))
@@ -221,9 +202,7 @@ def test_swatches_apply_live_and_settings_refresh_without_writes(
         button.click()
         assert config.accent_color == 'Teal'
         assert tab._accent_selector.accent() == 'Teal'  # pyright: ignore[reportPrivateUsage]
-        ThemeManager.set_preference(config, 'style', 'Glass')
         ThemeManager.set_preference(config, 'color_mode', 'Light')
-        assert tab._style_buttons['Glass'].isChecked()  # pyright: ignore[reportPrivateUsage]
         assert tab._color_buttons['Light'].isChecked()  # pyright: ignore[reportPrivateUsage]
         assert not tab._backdrop_combo.isHidden()  # pyright: ignore[reportPrivateUsage]
         saved = json.loads((manager.CONFIG_FILE).read_text())
@@ -249,23 +228,17 @@ def test_tray_actions_and_settings_stay_in_sync(
     events.changed.connect(tray._sync_appearance_actions)  # pyright: ignore[reportPrivateUsage]
     tab = SettingsTab(config)
     try:
-        tray.style_actions['Glass'].trigger()
+        assert not hasattr(tray, 'style_actions')
         tray.color_mode_actions['Light'].trigger()
         tray.accent_actions['Coral'].trigger()
-        assert (config.appearance_style, config.color_mode, config.accent_color) == (
-            'Glass',
-            'Light',
-            'Coral',
-        )
-        assert tab._style_buttons['Glass'].isChecked()  # pyright: ignore[reportPrivateUsage]
+        assert (config.color_mode, config.accent_color) == ('Light', 'Coral')
         assert tab._color_buttons['Light'].isChecked()  # pyright: ignore[reportPrivateUsage]
         assert tab._accent_selector.accent() == 'Coral'  # pyright: ignore[reportPrivateUsage]
-        ThemeManager.set_preference(config, 'style', 'Fusion')
         ThemeManager.set_preference(config, 'accent', 'Teal')
-        assert tray.style_actions['Fusion'].isChecked()
-        assert not tray.style_actions['Glass'].isChecked()
+        ThemeManager.set_preference(config, 'color_mode', 'Dark')
         assert tray.accent_actions['Teal'].isChecked()
-        assert tray.color_mode_actions['Light'].isChecked()
+        assert tray.color_mode_actions['Dark'].isChecked()
+        assert not tray.color_mode_actions['Light'].isChecked()
     finally:
         events.changed.disconnect(tray._sync_appearance_actions)  # pyright: ignore[reportPrivateUsage]
         tab.deleteLater()
@@ -279,19 +252,15 @@ def test_command_palette_changes_each_preference_independently(
     window = ReplacerConfigWindow(config, system_tray=None)
     try:
         commands = window._palette_commands()  # pyright: ignore[reportPrivateUsage]
+        assert not any(command.kind == tr('settings.appearance.style') for command in commands)
         for kind, title in (
-            (tr('settings.appearance.style'), choice_label('Glass')),
             (tr('settings.appearance.color_mode'), choice_label('Light')),
             (tr('settings.appearance.accent'), 'Rose'),
         ):
             next(
                 command for command in commands if command.kind == kind and command.title == title
             ).run()
-        assert (config.appearance_style, config.color_mode, config.accent_color) == (
-            'Glass',
-            'Light',
-            'Rose',
-        )
+        assert (config.color_mode, config.accent_color) == ('Light', 'Rose')
         assert glass.theme.active
         assert app.palette().window().color().lightness() > 128
     finally:

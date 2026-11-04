@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication
 
 from fleasion.gui.glass import controller, wallpaper
 from fleasion.gui.theme import ThemeManager
+from glass_helpers import leave_glass
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -39,28 +40,30 @@ def app() -> Iterator[QApplication]:
     application.processEvents()
 
 
-def test_non_glass_themes_preserve_startup_stylesheet_without_ever_enabling_glass(
+def test_every_color_mode_preserves_startup_stylesheet(
     app: QApplication,
 ) -> None:
-    ThemeManager.apply_theme('Light')
-    assert not controller.theme.active
+    leave_glass('Light')
     app.setStyleSheet(_STARTUP_STYLESHEET)
+    # Glass owns its rules per window, so the application stylesheet is never touched
     for theme in ('System', 'Dark', 'Light', 'System'):
         ThemeManager.apply_theme(theme)
         assert app.styleSheet() == _STARTUP_STYLESHEET
-        assert not controller.theme.active
+        assert controller.theme.active
+    leave_glass('Light')
+    assert app.styleSheet() == _STARTUP_STYLESHEET
 
 
 def test_glass_restores_original_stylesheet_after_reenable_and_disable(
     app: QApplication,
 ) -> None:
-    ThemeManager.apply_theme('Light')
+    leave_glass('Light')
     app.setStyleSheet(_STARTUP_STYLESHEET)
     ThemeManager.apply_theme('Glass')
     assert controller.theme.active
     assert app.styleSheet() == _STARTUP_STYLESHEET
     controller.theme.enable(app)
-    ThemeManager.apply_theme('Dark')
+    leave_glass('Dark')
     assert not controller.theme.active
     assert app.styleSheet() == _STARTUP_STYLESHEET
     # A redundant inactive disable must leave subsequent stylesheet changes alone
@@ -69,7 +72,7 @@ def test_glass_restores_original_stylesheet_after_reenable_and_disable(
     controller.theme.disable(app)
     assert app.styleSheet() == new_stylesheet
     ThemeManager.apply_theme('Glass')
-    ThemeManager.apply_theme('System')
+    leave_glass('System')
     assert app.styleSheet() == new_stylesheet
 
 

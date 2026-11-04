@@ -1,13 +1,11 @@
-"""Shared appearance choices, independent of the widget style."""
+"""Shared appearance choices. Glass is the only style; these tune it."""
 
 from __future__ import annotations
 
 from typing import Final, Literal
 
-type AppearanceStyle = Literal['Fusion', 'Glass']
 type ColorMode = Literal['Dark', 'Light', 'System']
 
-STYLES: Final[tuple[AppearanceStyle, ...]] = ('Fusion', 'Glass')
 COLOR_MODES: Final[tuple[ColorMode, ...]] = ('Dark', 'Light', 'System')
 DEFAULT_ACCENT: Final = 'Ice'
 ACCENTS: Final[dict[str, str]] = {
@@ -21,10 +19,6 @@ ACCENTS: Final[dict[str, str]] = {
     'Teal': '#54d2d2',
     'Mono': '#f2f4f8',
 }
-
-
-def appearance_style(value: object) -> AppearanceStyle:
-    return 'Glass' if value == 'Glass' else 'Fusion'
 
 
 def color_mode(value: object) -> ColorMode:

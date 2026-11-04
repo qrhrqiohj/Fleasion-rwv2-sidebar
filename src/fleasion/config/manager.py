@@ -14,7 +14,7 @@ from operator import itemgetter
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypeGuard, TypeIs
 
-from fleasion.appearance import accent_name, appearance_style, color_mode
+from fleasion.appearance import accent_name, color_mode
 from fleasion.utils.json_types import JsonObject, JsonValue, as_json_object, is_json_value
 from fleasion.utils.paths import CONFIG_DIR, CONFIG_FILE, CONFIGS_FOLDER
 
@@ -23,7 +23,7 @@ from .values import bool_value, int_value, parse_int, str_value, string_list
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from fleasion.appearance import AppearanceStyle, ColorMode
+    from fleasion.appearance import ColorMode
 
     from .types import (
         FileSignature,
@@ -417,11 +417,13 @@ def _is_probably_binary(raw: bytes) -> bool:
     )
 
 
+# Glass starts fully tinted; users can lower it for more see-through glass
+DEFAULT_GLASS_OPACITY = 1.0
+
 DEFAULT_SETTINGS: JsonObject = {
     'strip_textures': False,
     'enabled_configs': [],
     'last_config': 'Default',
-    'appearance_style': 'Fusion',
     'color_mode': 'System',
     'accent_color': 'Ice',
     'language': 'en',
@@ -787,7 +789,8 @@ class ConfigManager:
             del loaded['active_config']
         # Migrate before adding defaults so existing choices take precedence
         legacy_theme = loaded.pop('theme', 'System')
-        loaded.setdefault('appearance_style', 'Glass' if legacy_theme == 'Glass' else 'Fusion')
+        # Glass is the only style now; a saved Fusion choice keeps its color mode
+        loaded.pop('appearance_style', None)
         loaded.setdefault(
             'color_mode', 'Dark' if legacy_theme == 'Glass' else color_mode(legacy_theme)
         )
@@ -995,22 +998,13 @@ class ConfigManager:
 
     @property
     def theme(self) -> str:
-        """Compatibility view of the former combined theme setting."""
-        return 'Glass' if self.appearance_style == 'Glass' else self.color_mode
+        """Compatibility view of the former combined theme setting: the color mode."""
+        return self.color_mode
 
     @theme.setter
     def theme(self, value: str) -> None:
-        self.settings['appearance_style'] = 'Glass' if value == 'Glass' else 'Fusion'
+        # The former 'Glass' theme choice was dark Glass
         self.settings['color_mode'] = 'Dark' if value == 'Glass' else color_mode(value)
-        self._save_settings()
-
-    @property
-    def appearance_style(self) -> AppearanceStyle:
-        return appearance_style(self.settings.get('appearance_style'))
-
-    @appearance_style.setter
-    def appearance_style(self, value: AppearanceStyle) -> None:
-        self.settings['appearance_style'] = appearance_style(value)
         self._save_settings()
 
     @property
@@ -1043,9 +1037,9 @@ class ConfigManager:
     @property
     def glass_opacity(self) -> float:
         """Glass background opacity, from 0.2 to fully opaque at 1.0."""
-        value = self.settings.get('glass_opacity', 0.45)
+        value = self.settings.get('glass_opacity', DEFAULT_GLASS_OPACITY)
         if isinstance(value, bool) or not isinstance(value, int | float):
-            value = 0.45
+            value = DEFAULT_GLASS_OPACITY
         return min(1.0, max(0.2, float(value)))
 
     @glass_opacity.setter
