@@ -110,3 +110,14 @@ def test_unrelated_parent_pyproject_is_ignored(
     monkeypatch.setattr(version, '_read_installed_version', lambda: '2.3.0')
 
     assert version.read_version() == '2.3.0'
+
+
+@pytest.mark.parametrize(
+    'app_version,expected',
+    [
+        ('2.5', '2.5.TYLER'),
+        ('2.5b1+local', '2.5b1.TYLER+local'),
+    ],
+)
+def test_display_version_appends_edition_label(app_version: str, expected: str) -> None:
+    assert version.display_version(app_version) == expected

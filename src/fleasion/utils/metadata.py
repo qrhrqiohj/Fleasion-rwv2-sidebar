@@ -3,6 +3,7 @@
 __all__ = [
     'APP_AUTHOR',
     'APP_CONCEPT',
+    'APP_DISPLAY_VERSION',
     'APP_DISCORD',
     'APP_LOGIC',
     'APP_NAME',
@@ -13,8 +14,11 @@ __all__ = [
 from importlib.metadata import PackageNotFoundError, metadata as distribution_metadata
 
 from fleasion import __version__
+from fleasion.version import display_version
 
 APP_VERSION = __version__
+# Shown to users; APP_VERSION stays PEP 440 for update checks and bundle metadata
+APP_DISPLAY_VERSION = display_version(__version__)
 
 
 def _project_url(label: str) -> str:

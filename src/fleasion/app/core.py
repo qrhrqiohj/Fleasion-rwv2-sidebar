@@ -103,6 +103,7 @@ from fleasion.utils import (
 )
 from fleasion.utils.microprofiler import start_microprofiler
 from fleasion.utils.qt_diagnostics import install_qt_message_logging
+from fleasion.version import display_version
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QSessionManager
@@ -153,7 +154,7 @@ def run_application() -> None:
         sys.exit(0)
 
     suppress_dashboard = args.no_dashboard
-    log_buffer.log('App', f'Version {__version__}')
+    log_buffer.log('App', f'Version {display_version(__version__)}')
 
     # Frozen GUI builds do not have a useful console for Qt's native warnings
     # Capture warnings/errors in the normal rotating log before Qt/OpenGL setup

@@ -55,8 +55,8 @@ from fleasion.gui.appearance_controls import choice_label, swatch_icon
 from fleasion.localization import tr
 from fleasion.utils import (
     APP_DISCORD,
+    APP_DISPLAY_VERSION,
     APP_NAME,
-    APP_VERSION,
     CONFIG_DIR,
     LOGS_DIR,
     get_icon_path,
@@ -359,7 +359,7 @@ class SystemTray:
         """Create the tray menu."""
         # Title (disabled)
         title_action = QAction(
-            tr('ui.tray.value_v_value', value0=APP_NAME, value1=APP_VERSION), self.menu
+            tr('ui.tray.value_v_value', value0=APP_NAME, value1=APP_DISPLAY_VERSION), self.menu
         )
         title_action.setEnabled(False)
         self.menu.addAction(title_action)

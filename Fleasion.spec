@@ -19,7 +19,12 @@ from PyInstaller.utils.hooks import (
     copy_metadata,
 )
 
-from fleasion.version import build_artifact_version, macos_bundle_version, read_project_version
+from fleasion.version import (
+    build_artifact_version,
+    display_version,
+    macos_bundle_version,
+    read_project_version,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -282,7 +287,7 @@ try:
 except (OSError, ValueError) as exc:
     msg = f'Could not resolve the Fleasion build version: {exc}'
     raise SystemExit(msg) from exc
-_exe_name = f'Fleasion-v{_artifact_version}'
+_exe_name = f'Fleasion-v{display_version(_artifact_version)}'
 try:
     _distribution_version = distribution_version('fleasion')
 except PackageNotFoundError as e:

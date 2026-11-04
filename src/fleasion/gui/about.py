@@ -8,10 +8,10 @@ from fleasion.localization import tr
 from fleasion.utils import (
     APP_AUTHOR,
     APP_CONCEPT,
+    APP_DISPLAY_VERSION,
     APP_LOGIC,
     APP_NAME,
     APP_REPO,
-    APP_VERSION,
     get_icon_path,
 )
 
@@ -47,7 +47,7 @@ class AboutWindow(QDialog):
         layout.addWidget(name_label)
 
         # Version
-        version_label = QLabel(tr('ui.gui.about.version_value', value0=APP_VERSION))
+        version_label = QLabel(tr('ui.gui.about.version_value', value0=APP_DISPLAY_VERSION))
         version_label.setStyleSheet('color: palette(placeholder-text); font-size: 9pt;')
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)

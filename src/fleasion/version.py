@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 _DISTRIBUTION_NAME = 'fleasion'
 _UNKNOWN_VERSION = '0.0.0'
+# Edition label shown after the numeric version (PEP 440 has no room for it)
+VERSION_LABEL = 'TYLER'
 _GITHUB_SHA_PATTERN = re.compile(r'[0-9a-fA-F]{7,64}')
 
 
@@ -63,6 +65,14 @@ def build_artifact_version(
         )
         raise ValueError(msg)
     return f'{app_version}+g{github_sha[:7].lower()}'
+
+
+def display_version(app_version: str) -> str:
+    """Return the user-facing version, with the edition label before any local metadata."""
+    if not VERSION_LABEL:
+        return app_version
+    public, separator, local = app_version.partition('+')
+    return f'{public}.{VERSION_LABEL}{separator}{local}'
 
 
 def macos_bundle_version(app_version: str) -> str:
