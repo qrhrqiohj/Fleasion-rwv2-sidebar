@@ -417,11 +417,13 @@ def _is_probably_binary(raw: bytes) -> bool:
     )
 
 
+DEFAULT_GLASS_OPACITY = 1.0
+
 DEFAULT_SETTINGS: JsonObject = {
     'strip_textures': False,
     'enabled_configs': [],
     'last_config': 'Default',
-    'appearance_style': 'Fusion',
+    'appearance_style': 'Glass',
     'color_mode': 'System',
     'accent_color': 'Ice',
     'language': 'en',
@@ -786,8 +788,11 @@ class ConfigManager:
             loaded['last_config'] = loaded['active_config']
             del loaded['active_config']
         # Migrate before adding defaults so existing choices take precedence
-        legacy_theme = loaded.pop('theme', 'System')
-        loaded.setdefault('appearance_style', 'Glass' if legacy_theme == 'Glass' else 'Fusion')
+        # Configs from before Glass existed keep Fusion; everything else starts on Glass
+        legacy_theme = loaded.pop('theme', None)
+        loaded.setdefault(
+            'appearance_style', 'Glass' if legacy_theme in {None, 'Glass'} else 'Fusion'
+        )
         loaded.setdefault(
             'color_mode', 'Dark' if legacy_theme == 'Glass' else color_mode(legacy_theme)
         )
@@ -1043,9 +1048,9 @@ class ConfigManager:
     @property
     def glass_opacity(self) -> float:
         """Glass background opacity, from 0.2 to fully opaque at 1.0."""
-        value = self.settings.get('glass_opacity', 0.45)
+        value = self.settings.get('glass_opacity', DEFAULT_GLASS_OPACITY)
         if isinstance(value, bool) or not isinstance(value, int | float):
-            value = 0.45
+            value = DEFAULT_GLASS_OPACITY
         return min(1.0, max(0.2, float(value)))
 
     @glass_opacity.setter

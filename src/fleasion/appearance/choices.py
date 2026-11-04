@@ -24,7 +24,7 @@ ACCENTS: Final[dict[str, str]] = {
 
 
 def appearance_style(value: object) -> AppearanceStyle:
-    return 'Glass' if value == 'Glass' else 'Fusion'
+    return 'Fusion' if value == 'Fusion' else 'Glass'
 
 
 def color_mode(value: object) -> ColorMode:

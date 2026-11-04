@@ -97,24 +97,36 @@ def test_new_preferences_win_over_legacy_values(config: manager.ConfigManager) -
 
 def test_defaults_validation_and_persistence(config: manager.ConfigManager) -> None:
     assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Fusion',
+        'Glass',
         'System',
         'Ice',
     )
-    config.appearance_style = 'Glass'
+    assert config.glass_opacity == 1.0
+    config.appearance_style = 'Fusion'
     config.color_mode = 'Light'
     config.accent_color = 'Coral'
     config = manager.ConfigManager()
     assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Glass',
+        'Fusion',
         'Light',
         'Coral',
     )
     config.settings.update(appearance_style=['bad'], color_mode=42, accent_color={'bad': True})
     assert (config.appearance_style, config.color_mode, config.accent_color) == (
-        'Fusion',
+        'Glass',
         'System',
         'Ice',
+    )
+
+
+def test_existing_config_without_appearance_starts_on_glass(
+    config: manager.ConfigManager,
+) -> None:
+    config.settings = config._settings_from_loaded({})  # pyright: ignore[reportPrivateUsage]
+    assert (config.appearance_style, config.color_mode, config.glass_opacity) == (
+        'Glass',
+        'System',
+        1.0,
     )
 
 
@@ -141,7 +153,8 @@ def test_switching_style_preserves_mode_accent_and_glass_settings(
     config.accent_color = 'Amber'
     config.glass_opacity = 0.68
     config.glass_backdrop = 'wallpaper'
-    for style in ('Glass', 'Fusion', 'Glass'):
+    # Glass is the default, so start by switching away from it
+    for style in ('Fusion', 'Glass', 'Fusion', 'Glass'):
         ThemeManager.set_preference(config, 'style', style)
         assert config.color_mode == 'Light'
         assert config.accent_color == 'Amber'
